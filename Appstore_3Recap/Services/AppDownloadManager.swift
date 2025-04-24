@@ -37,12 +37,65 @@ class AppDownloadManager: ObservableObject {
     private init() {
         setupNotifications()
         loadState()
+        setupNetworkMonitoring()
+    }
+    
+    // MARK: - 네트워크 모니터링 설정
+    private func setupNetworkMonitoring() {
+        // 네트워크 연결 끊김 감지
+        NotificationCenter.default.publisher(for: .networkDisconnected)
+            .sink { [weak self] _ in
+                self?.handleNetworkDisconnection()
+            }
+            .store(in: &cancellables)
+        
+        // 네트워크 연결 복구 감지
+        NotificationCenter.default.publisher(for: .networkConnected)
+            .sink { [weak self] _ in
+                self?.handleNetworkReconnection()
+            }
+            .store(in: &cancellables)
+    }
+    
+    // 네트워크 연결 끊김 처리
+    private func handleNetworkDisconnection() {
+        // 현재 다운로드 중인 모든 앱을 일시 중지 상태로 변경
+        for (appId, downloadInfo) in downloads {
+            if case .downloading(let progress) = downloadInfo.state {
+                pauseDownload(for: appId)
+            }
+        }
+        
+        // 상태 변경 알림
+        NotificationCenter.default.post(name: Notification.Name("downloadStateChanged"), object: nil)
+    }
+    
+    // 네트워크 연결 복구 처리
+    private func handleNetworkReconnection() {
+        // 일시 중지된 다운로드가 있으면 알림만 보내고 자동 재개는 하지 않음
+        let hasPausedDownloads = downloads.values.contains { downloadInfo in
+            if case .paused = downloadInfo.state {
+                return true
+            }
+            return false
+        }
+        
+        if hasPausedDownloads {
+            // 상태 변경 알림
+            NotificationCenter.default.post(name: Notification.Name("downloadStateChanged"), object: nil)
+        }
     }
     
     // MARK: - 앱 다운로드 상태 관리
     
     // 다운로드 시작
     func startDownload(for app: AppModel) {
+        // 네트워크 연결 확인
+        if !NetworkMonitor.shared.isConnected {
+            // 네트워크 연결이 없으면 다운로드 시작하지 않음
+            return
+        }
+        
         // 이미 다운로드 중이면 무시
         guard downloads[app.id]?.state.isDownloading != true else { return }
         
@@ -69,6 +122,9 @@ class AppDownloadManager: ObservableObject {
         downloads[app.id] = downloadInfo
         saveState()
         startTimer(for: app.id)
+        
+        // 상태 변경 알림
+        NotificationCenter.default.post(name: Notification.Name("downloadStateChanged"), object: nil)
     }
     
     // 다운로드 일시 중지
@@ -82,6 +138,9 @@ class AppDownloadManager: ObservableObject {
         downloadInfo.downloadElapsedTime += Date().timeIntervalSince(downloadInfo.downloadStartTime ?? Date())
         downloads[appId] = downloadInfo
         saveState()
+        
+        // 상태 변경 알림
+        NotificationCenter.default.post(name: Notification.Name("downloadStateChanged"), object: nil)
     }
     
     // 앱 삭제
@@ -102,6 +161,9 @@ class AppDownloadManager: ObservableObject {
         
         // 모든 뷰에 알림
         objectWillChange.send()
+        
+        // 상태 변경 알림
+        NotificationCenter.default.post(name: Notification.Name("downloadStateChanged"), object: nil)
     }
     
     // MARK: - 타이머 관리
@@ -122,6 +184,13 @@ class AppDownloadManager: ObservableObject {
                   var downloadInfo = self.downloads[appId],
                   case .downloading(var progress) = downloadInfo.state else {
                 timer.invalidate()
+                return
+            }
+            
+            // 네트워크 연결 확인
+            if !NetworkMonitor.shared.isConnected {
+                // 네트워크 연결이 끊겼으면 타이머 중지 및 다운로드 일시 중지
+                self.pauseDownload(for: appId)
                 return
             }
             
@@ -150,6 +219,9 @@ class AppDownloadManager: ObservableObject {
             self.downloads[appId] = downloadInfo
             self.saveState()
             self.objectWillChange.send()
+            
+            // 상태 변경 알림
+            NotificationCenter.default.post(name: Notification.Name("downloadStateChanged"), object: nil)
         }
         
         // 타이머가 백그라운드에서도 동작하도록 설정
@@ -205,6 +277,9 @@ class AppDownloadManager: ObservableObject {
         
         self.lastBackgroundDate = nil
         saveState()
+        
+        // 상태 변경 알림
+        NotificationCenter.default.post(name: Notification.Name("downloadStateChanged"), object: nil)
     }
     
     private func handleAppTermination() {
@@ -234,7 +309,11 @@ class AppDownloadManager: ObservableObject {
         
         saveState()
         objectWillChange.send()
+        
+        // 상태 변경 알림
+        NotificationCenter.default.post(name: Notification.Name("downloadStateChanged"), object: nil)
     }
+    
     private func handleAppRelaunch() {
         // 다운로드 중이던 앱들을 재개 상태로 변경
         for (appId, var downloadInfo) in downloads {
@@ -244,6 +323,9 @@ class AppDownloadManager: ObservableObject {
             }
         }
         saveState()
+        
+        // 상태 변경 알림
+        NotificationCenter.default.post(name: Notification.Name("downloadStateChanged"), object: nil)
     }
     
     private func processBackgroundTime(_ elapsedTime: TimeInterval) {
@@ -273,8 +355,14 @@ class AppDownloadManager: ObservableObject {
                     downloadInfo.downloadElapsedTime = newElapsedTime
                     downloadInfo.downloadStartTime = Date()
                     
-                    // 타이머 재시작
-                    startTimer(for: appId)
+                    // 네트워크 연결 확인
+                    if NetworkMonitor.shared.isConnected {
+                        // 타이머 재시작
+                        startTimer(for: appId)
+                    } else {
+                        // 네트워크 연결이 없으면 일시 중지 상태로 변경
+                        downloadInfo.state = .paused(newProgress)
+                    }
                 }
                 
                 downloads[appId] = downloadInfo
@@ -283,6 +371,9 @@ class AppDownloadManager: ObservableObject {
         
         saveState()
         objectWillChange.send()
+        
+        // 상태 변경 알림
+        NotificationCenter.default.post(name: Notification.Name("downloadStateChanged"), object: nil)
     }
     
     // MARK: - 상태 저장 및 로드
@@ -346,4 +437,9 @@ class AppDownloadManager: ObservableObject {
             wasAppTerminated = true
         }
     }
+}
+
+// MARK: - NotificationCenter 확장
+extension Notification.Name {
+    static let downloadStateChanged = Notification.Name("downloadStateChanged")
 }

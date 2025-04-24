@@ -11,6 +11,7 @@ struct AsyncAppDetailView: View {
     @State var viewModel: AppDetailViewModel
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
+    @EnvironmentObject private var downloadManager: AppDownloadManager
     
     @State private var showingScreenshotViewer = false
     
@@ -21,7 +22,7 @@ struct AsyncAppDetailView: View {
                     // 상단 정보 섹션
                     AppHeaderSection(
                         app: app,
-                        downloadState: viewModel.getDownloadState(),
+                        downloadState: downloadManager.downloads[app.id]?.state ?? .notDownloaded,
                         onDownloadAction: handleDownloadAction
                     )
                     .padding(.top)
@@ -29,21 +30,7 @@ struct AsyncAppDetailView: View {
                     
                     Divider()
                     
-                    // 스크린샷 섹션 (앱이 열기 상태가 아닌 경우에만 표시)
-                    if viewModel.getDownloadState() != .downloaded {
-                        ScreenshotSection(
-                            screenshotURLs: app.effectiveScreenshotURLs,
-                            onScreenshotTap: { index in
-                                viewModel.selectScreenshot(at: index)
-                                showingScreenshotViewer = true
-                            }
-                        )
-                        .padding(.horizontal)
-                    }
-                    
-                    Divider()
-                    
-                    // 앱 정보 섹션
+                    // 앱 정보 섹션 (상단으로 이동)
                     AppInfoSection(app: app)
                         .padding(.horizontal)
                     
@@ -62,6 +49,20 @@ struct AsyncAppDetailView: View {
                         
                         Divider()
                     }
+                    
+                    // 스크린샷 섹션 (앱이 열기 상태가 아닌 경우에만 표시)
+                    
+                        ScreenshotSection(
+                            screenshotURLs: app.effectiveScreenshotURLs,
+                            onScreenshotTap: { index in
+                                viewModel.selectScreenshot(at: index)
+                                showingScreenshotViewer = true
+                            }
+                        )
+                        .padding(.horizontal)
+                        
+                        Divider()
+                    
                     
                     // 앱 설명 섹션
                     AppDescriptionSection(
@@ -94,31 +95,45 @@ struct AsyncAppDetailView: View {
                let selectedIndex = viewModel.selectedScreenshotIndex {
                 ScreenshotViewer(
                     screenshotURLs: app.effectiveScreenshotURLs,
-                    initialIndex: selectedIndex
+                    initialIndex: selectedIndex,
+                    app: app
                 )
             }
         }
         .onChange(of: scenePhase) { oldPhase, newPhase in
             // 앱이 활성화될 때마다 다운로드 상태 갱신
-            if newPhase == .active && oldPhase != .active {
-                // 뷰 갱신 (UI 업데이트 트리거)
-                if let app = viewModel.app {
-                    let currentApp = app
-                    viewModel.app = nil
-                    viewModel.app = currentApp
-                }
+            if newPhase == .active {
+                // 상태 변경 알림
+                NotificationCenter.default.post(name: Notification.Name("downloadStateChanged"), object: nil)
+            }
+        }
+        // 다운로드 매니저의 상태가 변경될 때마다 UI 업데이트
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("downloadStateChanged"))) { _ in
+            // 뷰 갱신 (UI 업데이트 트리거)
+            if let app = viewModel.app {
+                let currentApp = app
+                viewModel.app = nil
+                viewModel.app = currentApp
             }
         }
     }
     
     private func handleDownloadAction() {
-        switch viewModel.getDownloadState() {
+        guard let app = viewModel.app else { return }
+        
+        switch downloadManager.downloads[app.id]?.state ?? .notDownloaded {
         case .notDownloaded, .redownload:
-            viewModel.startDownload()
+            downloadManager.startDownload(for: app)
+            // 상태 변경 알림
+            NotificationCenter.default.post(name: Notification.Name("downloadStateChanged"), object: nil)
         case .downloading:
-            viewModel.pauseDownload()
+            downloadManager.pauseDownload(for: app.id)
+            // 상태 변경 알림
+            NotificationCenter.default.post(name: Notification.Name("downloadStateChanged"), object: nil)
         case .paused:
-            viewModel.startDownload()
+            downloadManager.startDownload(for: app)
+            // 상태 변경 알림
+            NotificationCenter.default.post(name: Notification.Name("downloadStateChanged"), object: nil)
         case .downloaded:
             // 이미 설치된 앱은 별도의 동작 없음
             break

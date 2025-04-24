@@ -231,6 +231,7 @@ enum AppDownloadState: Equatable, Codable {
     }
 }
 
+
 // 앱 다운로드 정보
 struct AppDownloadInfo: Identifiable, Codable {
     let id: String  // 앱 ID와 동일

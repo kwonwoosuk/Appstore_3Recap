@@ -7,8 +7,10 @@
 
 import SwiftUI
 
+
 struct MainTabView: View {
     @State private var selectedTab = 4 // 검색 탭
+    @StateObject private var downloadManager = AppDownloadManager.shared
     
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -48,7 +50,16 @@ struct MainTabView: View {
             
             // UI 애니메이션 설정
             UIView.appearance().tintColor = UIColor(Color.appStoreBlue)
+            let appearance = UITabBarAppearance()
+            appearance.configureWithDefaultBackground() // 기본 배경 설정
+            appearance.backgroundEffect = UIBlurEffect(style: .prominent) // 블러 효과
+            appearance.backgroundColor = UIColor.systemBackground.withAlphaComponent(0.01)
+            appearance.shadowImage = nil // 상단 구분선 제거
+            
+            UITabBar.appearance().standardAppearance = appearance
+            UITabBar.appearance().scrollEdgeAppearance = appearance
         }
+        .environmentObject(downloadManager)
     }
     
     

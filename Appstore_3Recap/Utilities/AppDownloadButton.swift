@@ -20,10 +20,10 @@ struct AppDownloadButton: View {
                 // 받기 버튼 - 텍스트만
                 Text(state.buttonText)
                     .fontWeight(.medium)
-                    .foregroundColor(.white)
+                    .foregroundColor(.appStoreBlue)
                     .frame(height: 28)
                     .frame(minWidth: 70)
-                    .background(Color.appStoreBlue)
+                    .background(Color.secondaryBackground)
                     .cornerRadius(14)
             
             case .downloading(let progress):
@@ -53,10 +53,10 @@ struct AppDownloadButton: View {
                     Text(state.buttonText)
                 }
                 .fontWeight(.medium)
-                .foregroundColor(.white)
+                .foregroundColor(.appStoreBlue)
                 .frame(height: 28)
                 .frame(minWidth: 70)
-                .background(Color.appStoreBlue)
+                .background(Color.secondaryBackground)
                 .cornerRadius(14)
             
             case .downloaded:
@@ -73,9 +73,9 @@ struct AppDownloadButton: View {
                 // 다시받기 버튼 - 아이콘만
                 Image(systemName: "icloud.and.arrow.down")
                     .font(.system(size: 16))
-                    .foregroundColor(.white)
+                    .foregroundColor(.appStoreBlue)
                     .frame(width: 28, height: 28)
-                    .background(Color.appStoreBlue)
+                    .background(Color.secondaryBackground)
                     .clipShape(Circle())
             }
         }

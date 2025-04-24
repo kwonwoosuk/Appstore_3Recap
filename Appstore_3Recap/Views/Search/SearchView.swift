@@ -10,7 +10,9 @@ import SwiftUI
 struct AsyncSearchView: View {
     @State var viewModel = SearchViewModel()
     @State private var showingDetail = false
+    @State private var detailAppId: String? = nil
     @Environment(\.scenePhase) private var scenePhase
+    @EnvironmentObject private var downloadManager: AppDownloadManager
     
     var body: some View {
         NavigationStack {
@@ -58,26 +60,43 @@ struct AsyncSearchView: View {
                     // 검색 결과 목록
                     List {
                         ForEach(viewModel.searchResults) { app in
-                            SearchResultRow(app: app, downloadState: viewModel.getDownloadState(for: app.id))
-                                .onTapGesture {
-                                    viewModel.selectApp(app)
-                                    showingDetail = true
-                                }
-                                .onAppear {
-                                    // 마지막 항목일 경우 더 로드
-                                    if app.id == viewModel.searchResults.last?.id {
-                                        viewModel.loadMoreResults()
+                            ZStack {
+                                SearchResultRow(app: app, downloadState: downloadManager.downloads[app.id]?.state ?? .notDownloaded)
+                                    .onAppear {
+                                        // 마지막 항목일 경우 더 로드
+                                        if app.id == viewModel.searchResults.last?.id,
+                                           viewModel.hasMoreResults {
+                                            viewModel.loadMoreResults()
+                                        }
                                     }
-                                }
+                                
+                                // 앱 행을 탭하면 상세 화면으로 이동 (다운로드 버튼 제외)
+                                Rectangle()
+                                    .fill(Color.clear)
+                                    .contentShape(Rectangle())
+                                    .onTapGesture {
+                                        viewModel.selectApp(app)
+                                        showingDetail = true
+                                    }
+                            }
+                            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                            .listRowSeparator(.hidden)
                         }
                         
-                        if viewModel.hasMoreResults {
-                            ProgressView()
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .onAppear {
+                        // 더 로드 중일 때 하단 로딩 표시
+                        if viewModel.hasMoreResults && !viewModel.searchResults.isEmpty {
+                            HStack {
+                                Spacer()
+                                ProgressView()
+                                    .padding()
+                                Spacer()
+                            }
+                            .onAppear {
+                                if !viewModel.isLoading {
                                     viewModel.loadMoreResults()
                                 }
+                            }
+                            .listRowSeparator(.hidden)
                         }
                     }
                     .listStyle(PlainListStyle())
@@ -99,12 +118,17 @@ struct AsyncSearchView: View {
             }
             .onChange(of: scenePhase) { oldPhase, newPhase in
                 // 앱이 활성화될 때마다 다운로드 상태 갱신
-                if newPhase == .active && oldPhase != .active {
+                if newPhase == .active {
                     // 뷰 갱신 (UI 업데이트 트리거)
-                    let currentResults = viewModel.searchResults
-                    viewModel.searchResults = []
-                    viewModel.searchResults = currentResults
+                    NotificationCenter.default.post(name: Notification.Name("downloadStateChanged"), object: nil)
                 }
+            }
+            // 다운로드 매니저가 변경될 때마다 뷰 업데이트
+            .onReceive(NotificationCenter.default.publisher(for: Notification.Name("downloadStateChanged"))) { _ in
+                // 뷰 갱신 강제 트리거
+                let currentResults = viewModel.searchResults
+                viewModel.searchResults = []
+                viewModel.searchResults = currentResults
             }
         }
     }

@@ -58,7 +58,9 @@ struct AsyncUserAppsView: View {
                                         showDeleteAlert = true
                                     } label: {
                                         Label("삭제", systemImage: "trash")
+                                            
                                     }
+                                    
                                 }
                         }
                     }

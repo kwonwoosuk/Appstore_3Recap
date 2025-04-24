@@ -26,12 +26,10 @@ struct SearchBar: View {
                     .padding(8)
                     .focused($isFocused)
                     .onSubmit {
-                        // 리턴키를 눌렀을 때 검색 실행
                         onCommit()
                     }
                     .onChange(of: text) { oldValue, newValue in
                         isEditing = true
-                        // 실시간 검색은 제거하고 리턴키를 통해서만 검색하도록 변경
                     }
                 
                 if !text.isEmpty {
@@ -44,19 +42,18 @@ struct SearchBar: View {
                     }
                 }
             }
-            .background(Color.secondaryBackground)
+            .padding(.vertical, 4)
+            .background(BlurView(style: .prominent)) // 블러 효과
+            .background(Color(.systemBackground).opacity(0.01)) 
             .cornerRadius(10)
+            .clipShape(RoundedRectangle(cornerRadius: 10))
             
             if isEditing {
                 Button("취소") {
                     text = ""
                     isEditing = false
                     isFocused = false
-                    
-                    // 키보드 내리기
                     UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-                    
-                    // 취소 액션 실행 (검색 결과 초기화)
                     onCancel()
                 }
                 .padding(.leading, 10)
@@ -64,5 +61,19 @@ struct SearchBar: View {
                 .animation(.default, value: isEditing)
             }
         }
+    }
+}
+
+// UIVisualEffectView를 SwiftUI에 통합
+struct BlurView: UIViewRepresentable {
+    let style: UIBlurEffect.Style
+    
+    func makeUIView(context: Context) -> UIVisualEffectView {
+        let view = UIVisualEffectView(effect: UIBlurEffect(style: style))
+        return view
+    }
+    
+    func updateUIView(_ uiView: UIVisualEffectView, context: Context) {
+        uiView.effect = UIBlurEffect(style: style)
     }
 }

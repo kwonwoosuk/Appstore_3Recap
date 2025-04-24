@@ -26,6 +26,8 @@ class SearchViewModel {
     private var currentPage = 1
     private let itemsPerPage = 20
     private var lastSearchTask: Task<Void, Never>? = nil
+    private var loadedAppIds = Set<String>() // 이미 로드된 앱 ID를 추적
+    private var noMoreResults = false // 더 이상 결과가 없음을 표시
     
     private let networkService: NetworkService
     private let downloadManager: AppDownloadManager
@@ -52,6 +54,8 @@ class SearchViewModel {
         isLoading = true
         errorMessage = nil
         currentPage = 1
+        loadedAppIds.removeAll() // 앱 ID 추적 초기화
+        noMoreResults = false // 결과 없음 플래그 초기화
         
         lastSearchTask = Task { @MainActor in
             do {
@@ -60,8 +64,19 @@ class SearchViewModel {
                 // Task가 취소되었는지 확인
                 try Task.checkCancellation()
                 
-                searchResults = apps
-                hasMoreResults = apps.count >= itemsPerPage
+                // 중복 제거
+                let uniqueApps = apps.filter { app in
+                    !loadedAppIds.contains(app.id)
+                }
+                
+                // 앱 ID 추적에 추가
+                uniqueApps.forEach { app in
+                    loadedAppIds.insert(app.id)
+                }
+                
+                searchResults = uniqueApps
+                hasMoreResults = uniqueApps.count >= itemsPerPage
+                noMoreResults = uniqueApps.isEmpty // 결과가 없으면 더 로드하지 않음
                 isLoading = false
             } catch is CancellationError {
                 // 작업이 취소된 경우 아무것도 하지 않음
@@ -76,7 +91,7 @@ class SearchViewModel {
     }
     
     func loadMoreResults() {
-        guard !isLoading, hasMoreResults, !searchQuery.isEmpty else { return }
+        guard !isLoading, hasMoreResults, !searchQuery.isEmpty, !noMoreResults else { return }
         
         currentPage += 1
         isLoading = true
@@ -88,8 +103,26 @@ class SearchViewModel {
                 // Task가 취소되었는지 확인
                 try Task.checkCancellation()
                 
-                searchResults.append(contentsOf: newApps)
-                hasMoreResults = newApps.count >= itemsPerPage
+                // 중복 제거
+                let uniqueApps = newApps.filter { app in
+                    !loadedAppIds.contains(app.id)
+                }
+                
+                // 새로운 결과가 없으면 더 이상 로드하지 않음
+                if uniqueApps.isEmpty {
+                    hasMoreResults = false
+                    noMoreResults = true
+                    isLoading = false
+                    return
+                }
+                
+                // 앱 ID 추적에 추가
+                uniqueApps.forEach { app in
+                    loadedAppIds.insert(app.id)
+                }
+                
+                searchResults.append(contentsOf: uniqueApps)
+                hasMoreResults = uniqueApps.count >= itemsPerPage
                 isLoading = false
             } catch is CancellationError {
                 // 작업이 취소된 경우 아무것도 하지 않음
@@ -108,6 +141,8 @@ class SearchViewModel {
         hasMoreResults = false
         currentPage = 1
         hasSearched = false  // 검색 실행 여부 리셋
+        loadedAppIds.removeAll() // 앱 ID 추적 초기화
+        noMoreResults = false // 결과 없음 플래그 초기화
         
         // 진행중인 검색 작업 취소
         lastSearchTask?.cancel()
@@ -117,6 +152,8 @@ class SearchViewModel {
     
     func refreshResults() {
         currentPage = 1
+        loadedAppIds.removeAll() // 앱 ID 추적 초기화
+        noMoreResults = false // 결과 없음 플래그 초기화
         searchApps()
     }
     

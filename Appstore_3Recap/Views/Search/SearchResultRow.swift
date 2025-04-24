@@ -71,9 +71,16 @@ struct SearchResultRow: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 
                 // 다운로드 버튼
-                AppDownloadButton(app: app, state: downloadState) {
-                    handleDownloadAction()
+                ZStack {
+                    Button(action: {
+                        handleDownloadAction()
+                    }) {
+                        AppDownloadButton(app: app, state: downloadState) {
+                            // 실제 동작은 상위 버튼에서 처리
+                        }
+                    }
                 }
+                .zIndex(10) // 버튼을 최상위 레이어로 설정
             }
             
             // 스크린샷 - 앱이 설치되지 않은 경우에만 표시
