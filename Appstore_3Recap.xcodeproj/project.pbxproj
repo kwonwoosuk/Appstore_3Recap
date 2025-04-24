@@ -6,8 +6,13 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		4D77B6552DBA6F7500B49D1D /* .gitignore in Resources */ = {isa = PBXBuildFile; fileRef = 4D77B6542DBA6F7500B49D1D /* .gitignore */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		4D77B6232DBA6AE100B49D1D /* Appstore_3Recap.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Appstore_3Recap.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		4D77B6542DBA6F7500B49D1D /* .gitignore */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitignore; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -32,6 +37,7 @@
 		4D77B61A2DBA6AE100B49D1D = {
 			isa = PBXGroup;
 			children = (
+				4D77B6542DBA6F7500B49D1D /* .gitignore */,
 				4D77B6252DBA6AE100B49D1D /* Appstore_3Recap */,
 				4D77B6242DBA6AE100B49D1D /* Products */,
 			);
@@ -109,6 +115,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				4D77B6552DBA6F7500B49D1D /* .gitignore in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
