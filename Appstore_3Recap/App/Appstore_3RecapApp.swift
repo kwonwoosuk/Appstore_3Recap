@@ -7,14 +7,14 @@
 
 import SwiftUI
 
-//@main
-//struct Appstore_3RecapApp: App {
-//    @StateObject private var downloadManager = AppDownloadManager.shared
-//        
-//        var body: some Scene {
-//            WindowGroup {
-//                MainTabView()
-//                    .environmentObject(downloadManager)
-//            }
-//        }
-//}
+@main
+struct Appstore_3RecapApp: App {
+    @StateObject private var downloadManager = AppDownloadManager.shared
+        
+        var body: some Scene {
+            WindowGroup {
+                MainTabView()
+                    .environmentObject(downloadManager)
+            }
+        }
+}
