@@ -10,6 +10,25 @@ import SwiftUI
 struct UserAppRow: View {
     let app: AppModel
     
+    // yyyy년 MM월 dd일 형식을 yyyy.MM.dd 형식으로 변환하는 함수
+    private func formatDate(_ dateString: String) -> String {
+        // 기존 포맷에서 년, 월, 일 추출
+        let components = dateString.components(separatedBy: CharacterSet(charactersIn: "년월일 "))
+            .filter { !$0.isEmpty }
+        
+        // 추출된 구성요소가 3개(년, 월, 일)인지 확인
+        if components.count >= 3 {
+            let year = components[0]
+            let month = components[1]
+            let day = components[2]
+            
+            return "\(year).\(month).\(day)"
+        }
+        
+        // 파싱할 수 없는 경우 원본 반환
+        return dateString
+    }
+    
     var body: some View {
         HStack(spacing: 12) {
             // 앱 아이콘
@@ -22,15 +41,11 @@ struct UserAppRow: View {
                     .font(.headline)
                     .lineLimit(1)
                 
-                Text(app.category)
+                // 카테고리와 버전 대신 출시일(릴리즈 날짜) yyyy.MM.dd 형식으로 표시
+                Text(formatDate(app.releaseDate))
                     .font(.subheadline)
                     .foregroundColor(.secondaryText)
                     .lineLimit(1)
-                
-                // 버전
-                Text("버전 \(app.version)")
-                    .font(.caption)
-                    .foregroundColor(.tertiaryText)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             
