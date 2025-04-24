@@ -11,7 +11,7 @@ import SwiftUI
 struct Appstore_3RecapApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            
         }
     }
 }

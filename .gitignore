@@ -10,8 +10,8 @@
 
 .DS_Store
 APIKey.swift
-
-
+APIConstants.swift
+**/APIConstants.swift
 ## User settings
 xcuserdata/
 
