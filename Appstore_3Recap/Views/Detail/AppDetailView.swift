@@ -95,9 +95,11 @@ struct AsyncAppDetailView: View {
                let selectedIndex = viewModel.selectedScreenshotIndex {
                 ScreenshotViewer(
                     screenshotURLs: app.effectiveScreenshotURLs,
-                    initialIndex: selectedIndex,
-                    app: app
+                    initialIndex: selectedIndex
                 )
+                .edgesIgnoringSafeArea(.all)
+                .presentationDetents([.large]) // 전체 화면으로 표시
+                .presentationDragIndicator(.hidden) // 드래그 인디케이터 숨김
             }
         }
         .onChange(of: scenePhase) { oldPhase, newPhase in

@@ -10,69 +10,68 @@ import SwiftUI
 struct ScreenshotViewer: View {
     let screenshotURLs: [String]
     let initialIndex: Int
-    let app: AppModel
     
     @State private var currentIndex: Int
     @Environment(\.dismiss) private var dismiss
-    @EnvironmentObject private var downloadManager: AppDownloadManager
     
-    init(screenshotURLs: [String], initialIndex: Int, app: AppModel) {
+    init(screenshotURLs: [String], initialIndex: Int) {
         self.screenshotURLs = screenshotURLs
         self.initialIndex = initialIndex
-        self.app = app
         self._currentIndex = State(initialValue: initialIndex)
     }
     
     var body: some View {
         ZStack {
-            Color.white.edgesIgnoringSafeArea(.all)
+            Color(.systemBackground).edgesIgnoringSafeArea(.all)
             
             VStack(spacing: 0) {
-                // 상단 헤더 영역
+                // 상단 네비게이션 바
                 HStack {
-                    // 왼쪽 완료 버튼
                     Button(action: {
                         dismiss()
                     }) {
                         Text("완료")
                             .foregroundColor(.appStoreBlue)
-                            .font(.system(size: 17, weight: .regular))
-                            .padding()
+                            .font(.system(size: 17, weight: .medium))
                     }
                     
                     Spacer()
                     
-                    // 오른쪽 열기 버튼 (기능 없음)
-                    Text("열기")
-                        .foregroundColor(.appStoreBlue)
-                        .font(.system(size: 17, weight: .regular))
-                        .padding()
+                    // 열기 버튼 (다운로드 버튼 스타일과 유사하게)
+                    Button(action: {
+                        // 열기 버튼 액션 (별 기능 없음)
+                    }) {
+                        Text("열기")
+                            .fontWeight(.medium)
+                            .foregroundColor(.appStoreBlue)
+                            .frame(height: 28)
+                            .frame(minWidth: 70)
+                            .background(Color.secondaryBackground)
+                            .cornerRadius(14)
+                    }
                 }
-                .background(Color.white)
-                .foregroundColor(.white)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
                 
-                // 스크린샷 페이저
+                // 스크린샷 페이저 (라운드 코너와 그림자 적용)
                 TabView(selection: $currentIndex) {
                     ForEach(Array(screenshotURLs.enumerated()), id: \.offset) { index, url in
-                        AsyncImageView(url: url, placeholderImageName: "rectangle.on.rectangle")
-                            .scaledToFit()
+                        AsyncImageView(url: url, placeholderImageName: "rectangle.on.rectangle", cornerRadius: 12)
+                            .aspectRatio(contentMode: .fit)
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 10)
+                            .background(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .fill(Color(.systemBackground))
+                            )
+                            .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 2)
                             .tag(index)
                     }
                 }
-                .tabViewStyle(PageTabViewStyle(indexDisplayMode: .always))
-                .background(Color.black)
-                
-                // 하단 정보
-                HStack {
-                    // 인덱스 표시기
-                    Text("\(currentIndex + 1) / \(screenshotURLs.count)")
-                        .foregroundColor(.white)
-                        .font(.subheadline)
-                }
-                .padding(.bottom)
-                .background(Color.black)
+                .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .statusBarHidden(true)
+        .edgesIgnoringSafeArea(.all)
     }
 }
