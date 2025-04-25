@@ -88,43 +88,46 @@ class AppDownloadManager: ObservableObject {
     
     // MARK: - 앱 다운로드 상태 관리
     
-    // 다운로드 시작
+    // AppDownloadManager.swift에 추가
+    private let backgroundQueue = DispatchQueue(label: "com.appstore.download.background", qos: .background)
+
+    // startDownload 함수 수정
     func startDownload(for app: AppModel) {
-        // 네트워크 연결 확인
-        if !NetworkMonitor.shared.isConnected {
-            // 네트워크 연결이 없으면 다운로드 시작하지 않음
-            return
-        }
-        
         // 이미 다운로드 중이면 무시
         guard downloads[app.id]?.state.isDownloading != true else { return }
         
-        var downloadInfo = downloads[app.id] ?? AppDownloadInfo(id: app.id)
-        
-        switch downloadInfo.state {
-        case .notDownloaded, .redownload:
-            // 새 다운로드 시작
-            downloadInfo.state = .downloading(0.0)
-            downloadInfo.progress = 0.0
-            downloadInfo.downloadStartTime = Date()
-            downloadInfo.downloadElapsedTime = 0.0
+        backgroundQueue.async { [weak self] in
+            guard let self = self else { return }
             
-        case .paused(let progress):
-            // 일시 중지된 다운로드 재개
-            downloadInfo.state = .downloading(progress)
-            downloadInfo.downloadStartTime = Date()
+            var downloadInfo = self.downloads[app.id] ?? AppDownloadInfo(id: app.id)
             
-        case .downloading, .downloaded:
-            // 이미 다운로드 중이거나 완료된 경우 무시
-            return
+            switch downloadInfo.state {
+            case .notDownloaded, .redownload:
+                // 새 다운로드 시작
+                downloadInfo.state = .downloading(0.0)
+                downloadInfo.progress = 0.0
+                downloadInfo.downloadStartTime = Date()
+                downloadInfo.downloadElapsedTime = 0.0
+                
+            case .paused(let progress):
+                // 일시 중지된 다운로드 재개
+                downloadInfo.state = .downloading(progress)
+                downloadInfo.downloadStartTime = Date()
+                
+            case .downloading, .downloaded:
+                // 이미 다운로드 중이거나 완료된 경우 무시
+                return
+            }
+            
+            DispatchQueue.main.async {
+                self.downloads[app.id] = downloadInfo
+                self.saveState()
+                self.startTimer(for: app.id)
+                NotificationCenter.default.post(name: Notification.Name("downloadStateChanged"), object: nil)
+            }
         }
+            
         
-        downloads[app.id] = downloadInfo
-        saveState()
-        startTimer(for: app.id)
-        
-        // 상태 변경 알림
-        NotificationCenter.default.post(name: Notification.Name("downloadStateChanged"), object: nil)
     }
     
     // 다운로드 일시 중지
@@ -140,7 +143,9 @@ class AppDownloadManager: ObservableObject {
         saveState()
         
         // 상태 변경 알림
-        NotificationCenter.default.post(name: Notification.Name("downloadStateChanged"), object: nil)
+        DispatchQueue.main.async {
+            NotificationCenter.default.post(name: Notification.Name("downloadStateChanged"), object: nil)
+        }
     }
     
     // 앱 삭제
@@ -167,7 +172,6 @@ class AppDownloadManager: ObservableObject {
     }
     
     // MARK: - 타이머 관리
-    
     private func startTimer(for appId: String) {
         // 기존 타이머 중지
         stopTimer(for: appId)
@@ -175,53 +179,91 @@ class AppDownloadManager: ObservableObject {
         guard var downloadInfo = downloads[appId],
               case .downloading(let progress) = downloadInfo.state else { return }
         
-        // 남은 다운로드 시간 계산
-        let remainingTime = downloadDuration * (1.0 - Double(progress))
-        let updateInterval = 0.1 // 100ms마다 업데이트
+        // 업데이트 간격을 1초로 늘려 CPU 부하 감소 (0.2초 → 1초)
+        let updateInterval = 1.0
+        
+        // 마지막 UI 업데이트 시간과 UserDefaults 저장 시간 추적
+        var lastUIUpdateTime = Date()
+        var lastSaveTime = Date()
         
         timers[appId] = Timer.scheduledTimer(withTimeInterval: updateInterval, repeats: true) { [weak self] timer in
-            guard let self = self,
-                  var downloadInfo = self.downloads[appId],
-                  case .downloading(var progress) = downloadInfo.state else {
+            guard let self = self else {
                 timer.invalidate()
                 return
             }
             
-            // 네트워크 연결 확인
-            if !NetworkMonitor.shared.isConnected {
-                // 네트워크 연결이 끊겼으면 타이머 중지 및 다운로드 일시 중지
-                self.pauseDownload(for: appId)
-                return
-            }
-            
-            // 경과 시간 계산
-            let elapsedTime = downloadInfo.downloadElapsedTime + Date().timeIntervalSince(downloadInfo.downloadStartTime ?? Date())
-            
-            // 진행 상황 업데이트
-            progress = Float(min(1.0, elapsedTime / self.downloadDuration))
-            downloadInfo.progress = progress
-            downloadInfo.state = .downloading(progress)
-            
-            // 완료 처리
-            if progress >= 1.0 {
-                downloadInfo.state = .downloaded
-                downloadInfo.progress = 1.0
-                self.stopTimer(for: appId)
+            // 백그라운드 큐에서 계산 작업 수행
+            self.backgroundQueue.async {
+                guard var downloadInfo = self.downloads[appId],
+                      case .downloading(var progress) = downloadInfo.state else {
+                    DispatchQueue.main.async {
+                        timer.invalidate()
+                        self.timers[appId] = nil
+                    }
+                    return
+                }
                 
-                // 설치된 앱 목록에 추가
-                if !self.installedApps.contains(where: { $0.id == appId }) {
-                    if let app = NetworkService.shared.cachedApps.first(where: { $0.id == appId }) {
-                        self.installedApps.append(app)
+                // 네트워크 연결 확인
+                if !NetworkMonitor.shared.isConnected {
+                    DispatchQueue.main.async {
+                        self.pauseDownload(for: appId)
+                    }
+                    return
+                }
+                
+                // 경과 시간 계산
+                let elapsedTime = downloadInfo.downloadElapsedTime + Date().timeIntervalSince(downloadInfo.downloadStartTime ?? Date())
+                
+                // 진행 상황 업데이트 - 최소 5% 이상 변화가 있을 때만 UI 업데이트
+                let newProgress = Float(min(1.0, elapsedTime / self.downloadDuration))
+                let progressChanged = abs(newProgress - progress) > 0.05 // 5% 이상 변화가 있을 때만 처리
+                
+                progress = newProgress
+                downloadInfo.progress = progress
+                downloadInfo.state = .downloading(progress)
+                
+                // 완료 상태 확인
+                let isCompleted = progress >= 1.0
+                
+                // UI 업데이트는 메인 스레드에서 수행
+                DispatchQueue.main.async {
+                    // 다운로드 완료 처리
+                    if isCompleted {
+                        downloadInfo.state = .downloaded
+                        downloadInfo.progress = 1.0
+                        self.stopTimer(for: appId)
+                        
+                        // 설치된 앱 목록에 추가
+                        if !self.installedApps.contains(where: { $0.id == appId }) {
+                            if let app = NetworkService.shared.cachedApps.first(where: { $0.id == appId }) {
+                                self.installedApps.append(app)
+                            }
+                        }
+                    }
+                    
+                    // 상태 변화가 있거나 완료된 경우에만 업데이트
+                    if (progressChanged || isCompleted) {
+                        self.downloads[appId] = downloadInfo
+                        
+                        // 5초에 한 번만 또는 완료 시에만 저장 (성능 최적화 - 3초에서 5초로 늘림)
+                        let currentTime = Date()
+                        if isCompleted || currentTime.timeIntervalSince(lastSaveTime) >= 5.0 {
+                            self.saveState()
+                            lastSaveTime = currentTime
+                        }
+                        
+                        // UI 업데이트 알림 - 특정 버튼에만 알림을 보내기 위한 최적화
+                        // 전체 UI 업데이트는 1.5초에 한 번만 수행
+                        if isCompleted || currentTime.timeIntervalSince(lastUIUpdateTime) >= 1.5 {
+                            self.objectWillChange.send()
+                            lastUIUpdateTime = currentTime
+                            
+                            // 전체 UI 업데이트 대신 특정 다운로드 버튼만 업데이트하는 알림 전송
+                            self.sendButtonStateChangeNotification(for: appId)
+                        }
                     }
                 }
             }
-            
-            self.downloads[appId] = downloadInfo
-            self.saveState()
-            self.objectWillChange.send()
-            
-            // 상태 변경 알림
-            NotificationCenter.default.post(name: Notification.Name("downloadStateChanged"), object: nil)
         }
         
         // 타이머가 백그라운드에서도 동작하도록 설정
@@ -481,15 +523,16 @@ class AppDownloadManager: ObservableObject {
         }
     }
 }
-
 extension AppDownloadManager {
-    // 버튼 상태 변경만을 위한 옵티마이즈된 알림 함수
+    
     func sendButtonStateChangeNotification(for appId: String) {
-        NotificationCenter.default.post(
-            name: .downloadButtonStateChanged,
-            object: nil,
-            userInfo: ["appId": appId]
-        )
+        DispatchQueue.main.async{
+            NotificationCenter.default.post(
+                name: .downloadButtonStateChanged,
+                object: nil,
+                userInfo: ["appId": appId]
+            )
+        }
     }
     
     // 다운로드 시작 함수 수정 (기존 코드 유지하고 마지막에 추가)

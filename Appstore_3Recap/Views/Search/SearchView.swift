@@ -137,10 +137,12 @@ struct AsyncSearchView: View {
 struct DownloadButtonView: View {
     let app: AppModel
     @EnvironmentObject private var downloadManager: AppDownloadManager
+    @State private var downloadState: AppDownloadState
     
-    // 상태를 직접 계산하는 계산 프로퍼티
-    var downloadState: AppDownloadState {
-        downloadManager.downloads[app.id]?.state ?? .notDownloaded
+    init(app: AppModel) {
+        self.app = app
+        // 초기 상태를 가져와 @State로 저장
+        _downloadState = State(initialValue: AppDownloadManager.shared.downloads[app.id]?.state ?? .notDownloaded)
     }
     
     var body: some View {
@@ -148,31 +150,34 @@ struct DownloadButtonView: View {
         AppDownloadButton(app: app, state: downloadState) {
             handleDownloadAction()
         }
+        // 특정 앱 ID에 대한 알림만 수신하도록 설정
+        .onReceive(
+            NotificationCenter.default.publisher(for: .downloadButtonStateChanged)
+                .filter { ($0.userInfo?["appId"] as? String) == app.id }
+        ) { _ in
+            // 상태 갱신 - 전체 뷰가 아닌 현재 버튼만 업데이트
+            downloadState = downloadManager.downloads[app.id]?.state ?? .notDownloaded
+        }
         // 이 View만 고유하게 식별하는 ID
-        .id("downloadButton-\(app.id)-\(downloadState)")
+        .id("downloadButton-\(app.id)")
     }
     
     private func handleDownloadAction() {
-        print("Download button tapped for app: \(app.name)")
-        
-        switch downloadState {
-        case .notDownloaded, .redownload:
-            print("Starting download for: \(app.name)")
-            downloadManager.startDownload(for: app)
-        case .downloading:
-            print("Pausing download for: \(app.name)")
-            downloadManager.pauseDownload(for: app.id)
-        case .paused:
-            print("Resuming download for: \(app.name)")
-            downloadManager.startDownload(for: app)
-        case .downloaded:
-            print("App already downloaded: \(app.name)")
-            // 이미 설치된 앱은 별도의 동작 없음
-            break
+        DispatchQueue.global(qos: .userInitiated).async {
+            switch downloadState {
+            case .notDownloaded, .redownload:
+                downloadManager.startDownload_modified(for: app)
+            case .downloading:
+                downloadManager.pauseDownload_modified(for: app.id)
+            case .paused:
+                downloadManager.startDownload_modified(for: app)
+            case .downloaded:
+                // 이미 설치된 앱은 별도의 동작 없음
+                break
+            }
         }
     }
 }
-
 // 행 내용을 위한 별도 View (버튼 제외)
 struct RowContentView: View {
     let app: AppModel

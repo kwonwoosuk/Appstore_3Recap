@@ -163,43 +163,83 @@ struct NetworkErrorView: View {
 
 
 // MARK: - 이미지 로딩 뷰
+
 struct AsyncImageView: View {
     let url: String
     let placeholderImageName: String
     var cornerRadius: CGFloat = 0
     
+    @State private var image: UIImage?
+    @State private var isLoading = true
+    @State private var loadFailed = false
+    
     var body: some View {
-        if let imageURL = URL(string: url) {
-            AsyncImage(url: imageURL) { phase in
-                switch phase {
-                case .empty:
-                    ZStack {
-                        Color.secondaryBackground
-                        Image(systemName: placeholderImageName)
-                            .foregroundColor(.gray)
-                    }
-                case .success(let image):
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                case .failure:
-                    ZStack {
-                        Color.secondaryBackground
-                        Image(systemName: "exclamationmark.triangle")
-                            .foregroundColor(.gray)
-                    }
-                @unknown default:
-                    EmptyView()
+        Group {
+            if let image = image {
+                Image(uiImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+            } else if isLoading {
+                ZStack {
+                    Color.secondaryBackground
+                    Image(systemName: placeholderImageName)
+                        .foregroundColor(.gray)
+                }
+            } else if loadFailed {
+                ZStack {
+                    Color.secondaryBackground
+                    Image(systemName: "exclamationmark.triangle")
+                        .foregroundColor(.gray)
                 }
             }
-            .cornerRadius(cornerRadius)
-        } else {
-            ZStack {
-                Color.secondaryBackground
-                Image(systemName: placeholderImageName)
-                    .foregroundColor(.gray)
+        }
+        .cornerRadius(cornerRadius)
+        .onAppear {
+            loadImage()
+        }
+    }
+    
+    private func loadImage() {
+        // 이미 이미지가 로드되어 있으면 반환
+        if image != nil { return }
+        
+        guard let imageURL = URL(string: url) else {
+            isLoading = false
+            loadFailed = true
+            return
+        }
+        
+        // 캐시에서 이미지 확인
+        if let cachedImage = ImageCache.shared.get(for: url) {
+            image = cachedImage
+            isLoading = false
+            return
+        }
+        
+        // 백그라운드 큐에서 이미지 로드
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                let data = try Data(contentsOf: imageURL)
+                if let downloadedImage = UIImage(data: data) {
+                    // 캐시에 저장
+                    ImageCache.shared.set(downloadedImage, for: url)
+                    
+                    DispatchQueue.main.async {
+                        self.image = downloadedImage
+                        self.isLoading = false
+                    }
+                } else {
+                    DispatchQueue.main.async {
+                        self.isLoading = false
+                        self.loadFailed = true
+                    }
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    self.isLoading = false
+                    self.loadFailed = true
+                }
             }
-            .cornerRadius(cornerRadius)
         }
     }
 }

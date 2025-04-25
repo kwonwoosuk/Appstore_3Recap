@@ -123,22 +123,42 @@ struct AsyncAppDetailView: View {
     private func handleDownloadAction() {
         guard let app = viewModel.app else { return }
         
-        switch downloadManager.downloads[app.id]?.state ?? .notDownloaded {
-        case .notDownloaded, .redownload:
-            downloadManager.startDownload(for: app)
-            // 상태 변경 알림
-            NotificationCenter.default.post(name: Notification.Name("downloadStateChanged"), object: nil)
-        case .downloading:
-            downloadManager.pauseDownload(for: app.id)
-            // 상태 변경 알림
-            NotificationCenter.default.post(name: Notification.Name("downloadStateChanged"), object: nil)
-        case .paused:
-            downloadManager.startDownload(for: app)
-            // 상태 변경 알림
-            NotificationCenter.default.post(name: Notification.Name("downloadStateChanged"), object: nil)
-        case .downloaded:
-            // 이미 설치된 앱은 별도의 동작 없음
-            break
+        DispatchQueue.global(qos: .userInitiated).async {
+            switch self.downloadManager.downloads[app.id]?.state ?? .notDownloaded {
+            case .notDownloaded, .redownload:
+                self.downloadManager.startDownload_modified(for: app)
+            case .downloading:
+                self.downloadManager.pauseDownload_modified(for: app.id)
+            case .paused:
+                self.downloadManager.startDownload_modified(for: app)
+            case .downloaded:
+                
+                break
+            }
         }
+    }
+}
+
+final class ImageCache {
+    static let shared = ImageCache()
+    private var cache = NSCache<NSString, UIImage>()
+    
+    private init() {
+        cache.countLimit = 100 // 캐시 항목 최대 개수
+        cache.totalCostLimit = 50 * 1024 * 1024 // 50MB 제한
+    }
+    
+    func set(_ image: UIImage, for key: String) {
+        // 이미지 크기에 비례하여 비용 계산
+        let cost = Int(image.size.width * image.size.height * 4) // RGBA 4바이트
+        cache.setObject(image, forKey: key as NSString, cost: cost)
+    }
+    
+    func get(for key: String) -> UIImage? {
+        return cache.object(forKey: key as NSString)
+    }
+    
+    func clear() {
+        cache.removeAllObjects()
     }
 }
