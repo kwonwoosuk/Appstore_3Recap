@@ -439,7 +439,40 @@ class AppDownloadManager: ObservableObject {
     }
 }
 
+extension AppDownloadManager {
+    // 버튼 상태 변경만을 위한 옵티마이즈된 알림 함수
+    func sendButtonStateChangeNotification(for appId: String) {
+        NotificationCenter.default.post(
+            name: .downloadButtonStateChanged,
+            object: nil,
+            userInfo: ["appId": appId]
+        )
+    }
+    
+    // 다운로드 시작 함수 수정 (기존 코드 유지하고 마지막에 추가)
+    func startDownload_modified(for app: AppModel) {
+        // 기존 코드는 그대로 유지
+        startDownload(for: app)
+        
+        // 버튼 상태 변경 알림만 전송
+        sendButtonStateChangeNotification(for: app.id)
+    }
+    
+    // 다운로드 일시 중지 함수 수정 (기존 코드 유지하고 마지막에 추가)
+    func pauseDownload_modified(for appId: String) {
+        // 기존 코드는 그대로 유지
+        pauseDownload(for: appId)
+        
+        // 버튼 상태 변경 알림만 전송
+        sendButtonStateChangeNotification(for: appId)
+    }
+}
+
 // MARK: - NotificationCenter 확장
 extension Notification.Name {
     static let downloadStateChanged = Notification.Name("downloadStateChanged")
+}
+extension Notification.Name {
+    // 다운로드 버튼 상태 변경만을 위한 별도 알림
+    static let downloadButtonStateChanged = Notification.Name("downloadButtonStateChanged")
 }

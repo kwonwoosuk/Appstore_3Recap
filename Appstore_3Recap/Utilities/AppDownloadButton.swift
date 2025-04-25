@@ -44,6 +44,7 @@ struct AppDownloadButton: View {
                         .font(.system(size: 10, weight: .bold))
                 }
                 .frame(width: 28, height: 28)
+                .contentShape(Rectangle()) // 터치 영역 명확히 지정
             
             case .paused:
                 // 재개 버튼 - 아이콘과 텍스트
@@ -79,5 +80,6 @@ struct AppDownloadButton: View {
                     .clipShape(Circle())
             }
         }
+        .buttonStyle(PlainButtonStyle()) // 명시적으로 플레인 스타일 지정
     }
 }

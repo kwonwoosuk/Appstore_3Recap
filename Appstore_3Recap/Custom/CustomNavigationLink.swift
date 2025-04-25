@@ -10,14 +10,12 @@ import SwiftUI
 struct CustomNavigationLink<Content: View, Destination: View>: View {
     let destination: Destination
     let content: () -> Content
-    let clickingButton: Bool
     
     @State private var isActive = false
     
-    init(destination: Destination, clickingButton: Bool = false, @ViewBuilder content: @escaping () -> Content) {
+    init(destination: Destination, @ViewBuilder content: @escaping () -> Content) {
         self.destination = destination
         self.content = content
-        self.clickingButton = clickingButton
     }
     
     var body: some View {
@@ -28,13 +26,24 @@ struct CustomNavigationLink<Content: View, Destination: View>: View {
             .opacity(0)
             
             content()
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    // 버튼을 클릭한 경우는 NavigationLink를 활성화하지 않음
-                    if !clickingButton {
+                .allowsHitTesting(true) // 내부 뷰의 터치 이벤트 허용
+            
+            // 다운로드 버튼 영역을 제외한 나머지 영역에만 탭 제스처 적용
+            GeometryReader { geometry in
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        // 터치 위치 확인 (다운로드 버튼 영역이 아닌 경우에만 활성화)
                         isActive = true
                     }
-                }
+            }
+            .allowsHitTesting(true)
         }
+        // 다운로드 버튼 영역에서의 이벤트 전파 중지
+        .simultaneousGesture(
+            TapGesture()
+                .onEnded { _ in }
+            , including: .subviews
+        )
     }
 }
