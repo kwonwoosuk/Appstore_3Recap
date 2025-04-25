@@ -235,3 +235,17 @@ struct RatingView: View {
         }
     }
 }
+
+
+extension Notification.Name {
+    // 네트워크 관련 알림
+    static let networkConnected = Notification.Name("networkConnected")
+    static let networkDisconnected = Notification.Name("networkDisconnected")
+    
+    // 다운로드 관련 알림
+    static let downloadsPausedDueToNetwork = Notification.Name("downloadsPausedDueToNetwork")
+    static let networkReconnected = Notification.Name("networkReconnected")
+    
+    // 타이머 관련 알림
+    static let timersCompleted = Notification.Name("timersCompleted")
+}

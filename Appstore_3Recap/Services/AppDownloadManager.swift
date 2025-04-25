@@ -256,6 +256,49 @@ class AppDownloadManager: ObservableObject {
                 self?.handleAppTermination()
             }
             .store(in: &cancellables)
+        
+        // 네트워크 연결 끊김 알림 구독
+        NotificationCenter.default.publisher(for: .networkDisconnected)
+            .sink { [weak self] _ in
+                self?.handleNetworkDisconnected()
+            }
+            .store(in: &cancellables)
+        
+        // 네트워크 연결 복구 알림 구독
+        NotificationCenter.default.publisher(for: .networkConnected)
+            .sink { [weak self] _ in
+                self?.handleNetworkConnected()
+            }
+            .store(in: &cancellables)
+    }
+    
+    private func handleNetworkDisconnected() {
+        // 다운로드 중인 모든 앱을 일시정지 상태로 변경
+        var pausedAppIds: [String] = []
+        
+        for (appId, downloadInfo) in downloads {
+            if case .downloading = downloadInfo.state {
+                pauseDownload(for: appId)
+                pausedAppIds.append(appId)
+            }
+        }
+        
+        // 일시정지된 앱이 있을 경우 알림 전송
+        if !pausedAppIds.isEmpty {
+            NotificationCenter.default.post(
+                name: .downloadsPausedDueToNetwork,
+                object: pausedAppIds
+            )
+        }
+    }
+    private func handleNetworkConnected() {
+        // 네트워크 연결이 복구되었음을 알림
+        NotificationCenter.default.post(
+            name: .networkReconnected,
+            object: nil
+        )
+        
+    
     }
     
     private func handleAppEnteringBackground() {

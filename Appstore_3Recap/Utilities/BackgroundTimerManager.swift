@@ -195,10 +195,6 @@ class BackgroundTimerManager {
     }
 }
 
-// MARK: - 알림 확장
-extension Notification.Name {
-    static let timersCompleted = Notification.Name("timersCompleted")
-}
 
 // MARK: - 다운로드 매니저에서 BackgroundTimerManager 활용
 extension AppDownloadManager {

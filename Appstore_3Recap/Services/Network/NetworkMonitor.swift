@@ -18,6 +18,9 @@ class NetworkMonitor {
     private(set) var isConnected: Bool = true
     private(set) var connectionType: ConnectionType = .unknown
     
+    // 최초 상태 변경 여부를 추적
+    private var isFirstUpdate = true
+    
     // 연결 유형
     enum ConnectionType {
         case wifi
@@ -36,15 +39,31 @@ class NetworkMonitor {
         monitor.start(queue: queue)
         
         monitor.pathUpdateHandler = { [weak self] path in
-            self?.isConnected = path.status == .satisfied
-            self?.getConnectionType(path)
+            guard let self = self else { return }
             
-            // 연결 상태 변경 알림 전송
-            DispatchQueue.main.async {
-                NotificationCenter.default.post(
-                    name: self?.isConnected == true ? .networkConnected : .networkDisconnected,
-                    object: nil
-                )
+            let newConnectionStatus = path.status == .satisfied
+            
+            // 현재 상태가 변경되었을 때만 알림 전송 (첫 상태 업데이트는 제외)
+            if !self.isFirstUpdate && self.isConnected != newConnectionStatus {
+                self.isConnected = newConnectionStatus
+                self.getConnectionType(path)
+                
+                // 연결 상태 변경 알림 전송
+                DispatchQueue.main.async {
+                    NotificationCenter.default.post(
+                        name: self.isConnected ? .networkConnected : .networkDisconnected,
+                        object: nil
+                    )
+                }
+            } else {
+                // 첫 상태 업데이트 또는 상태가 동일한 경우 - 알림 없이 상태만 업데이트
+                self.isConnected = newConnectionStatus
+                self.getConnectionType(path)
+            }
+            
+            // 첫 업데이트 후 플래그 해제
+            if self.isFirstUpdate {
+                self.isFirstUpdate = false
             }
         }
     }
@@ -66,10 +85,4 @@ class NetworkMonitor {
     func stopMonitoring() {
         monitor.cancel()
     }
-}
-
-// MARK: - 알림 확장
-extension Notification.Name {
-    static let networkConnected = Notification.Name("networkConnected")
-    static let networkDisconnected = Notification.Name("networkDisconnected")
 }
