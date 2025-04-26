@@ -288,4 +288,15 @@ extension Notification.Name {
     
     // 타이머 관련 알림
     static let timersCompleted = Notification.Name("timersCompleted")
+    
+    // 기존 알림 명확화
+    static let downloadStateChanged = Notification.Name("downloadStateChanged")
+    static let downloadButtonStateChanged = Notification.Name("downloadButtonStateChanged")
+    static let downloadProgressUpdated = Notification.Name("downloadProgressUpdated")
+    
+    // 앱 초기화 시 타이머 강제 시작을 위한 알림 추가
+    static let forceTimerStart = Notification.Name("forceTimerStart")
+    
+    // UI 강제 업데이트 알림
+    static let forceUIRefresh = Notification.Name("forceUIRefresh")
 }

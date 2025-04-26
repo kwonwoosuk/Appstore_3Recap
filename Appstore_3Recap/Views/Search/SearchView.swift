@@ -145,48 +145,177 @@ struct AsyncSearchView: View {
 struct DownloadButtonView: View {
     let app: AppModel
     @EnvironmentObject private var downloadManager: AppDownloadManager
-    @State private var downloadState: AppDownloadState
+    
+    // 애니메이션 없이 내부적으로 관리하는 상태
+    @State private var downloadStateType: AppDownloadState.StateType = .notDownloaded
+    @State private var progress: Float = 0.0
+    
+    // 마지막 알림 받은 시간 추적
+    @State private var lastUpdateTime = Date()
+    
+    // 초기화 여부 추적
+    @State private var isInitialized = false
     
     init(app: AppModel) {
         self.app = app
-        // 초기 상태를 가져와 @State로 저장
-        _downloadState = State(initialValue: AppDownloadManager.shared.downloads[app.id]?.state ?? .notDownloaded)
+        
+        // 초기 상태 설정
+        let initialState = AppDownloadManager.shared.downloads[app.id]?.state ?? .notDownloaded
+        _downloadStateType = State(initialValue: initialState.stateType)
+        _progress = State(initialValue: initialState.progress)
+    }
+    
+    // 현재 다운로드 상태 계산 프로퍼티
+    private var currentState: AppDownloadState {
+        switch downloadStateType {
+        case .notDownloaded:
+            return .notDownloaded
+        case .downloading:
+            return .downloading(progress)
+        case .paused:
+            return .paused(progress)
+        case .downloaded:
+            return .downloaded
+        case .redownload:
+            return .redownload
+        }
     }
     
     var body: some View {
-        // 액션을 클로저로 직접 AppDownloadButton에 전달
-        AppDownloadButton(app: app, state: downloadState) {
+        // AppDownloadButton에 상태 전달
+        AppDownloadButton(app: app, state: currentState) {
             handleDownloadAction()
         }
-        // 특정 앱 ID에 대한 알림만 수신하도록 설정
+        // 상태 변경 알림 수신 - 전체 상태 업데이트
         .onReceive(
             NotificationCenter.default.publisher(for: .downloadButtonStateChanged)
                 .filter { ($0.userInfo?["appId"] as? String) == app.id }
         ) { _ in
-            // 상태 갱신 - 전체 뷰가 아닌 현재 버튼만 업데이트
-            downloadState = downloadManager.downloads[app.id]?.state ?? .notDownloaded
+            updateFromDownloadManager()
         }
-        // 이 View만 고유하게 식별하는 ID
-        .id("downloadButton-\(app.id)")
-    }
-    
-    private func handleDownloadAction() {
-        DispatchQueue.global(qos: .userInitiated).async {
-            switch downloadState {
-            case .notDownloaded, .redownload:
-                downloadManager.startDownload_modified(for: app)
-            case .downloading:
-                downloadManager.pauseDownload_modified(for: app.id)
-            case .paused:
-                downloadManager.startDownload_modified(for: app)
-            case .downloaded:
-                // 이미 설치된 앱은 별도의 동작 없음
-                break
+        
+        // 프로그레스 업데이트 알림 수신 - 스로틀링 적용
+        .onReceive(
+            NotificationCenter.default.publisher(for: .downloadProgressUpdated)
+                .filter { ($0.userInfo?["appId"] as? String) == app.id }
+        ) { notification in
+            // 너무 잦은 업데이트 방지를 위한 스로틀링 (0.2초마다만 업데이트)
+            let currentTime = Date()
+            if currentTime.timeIntervalSince(lastUpdateTime) >= 0.2 {
+                if let newProgress = notification.userInfo?["progress"] as? Float {
+                    // 진행 상태만 업데이트
+                    self.progress = newProgress
+                    lastUpdateTime = currentTime
+                }
+            }
+        }
+        
+        // 화면에 나타날 때 초기화 작업
+        .onAppear {
+            // 다운로드 매니저에서 최신 상태 가져오기
+            updateFromDownloadManager()
+            
+            // 초기화 되지 않았거나 다운로드 중인 경우 타이머 확인
+            if !isInitialized || downloadStateType == .downloading {
+                // 다운로드 중인 경우 타이머가 실행 중인지 확인
+                if downloadStateType == .downloading {
+                    DispatchQueue.global(qos: .userInitiated).async {
+                        downloadManager.ensureTimerRunning(for: app.id)
+                    }
+                }
+                
+                // 상태 알림 수신 확인을 위해 즉시 알림 요청
+                if downloadStateType == .downloading {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        NotificationCenter.default.post(
+                            name: .downloadProgressUpdated,
+                            object: nil,
+                            userInfo: ["appId": app.id, "progress": progress]
+                        )
+                    }
+                }
+                
+                isInitialized = true
+            }
+        }
+        
+        // 글로벌 전체 상태 변경 알림 구독 (앱이 백그라운드에서 포그라운드로 돌아올 때 등)
+        .onReceive(NotificationCenter.default.publisher(for: .downloadStateChanged)) { _ in
+            updateFromDownloadManager()
+        }
+        
+        // 초기화 시 즉시 상태 적용
+        .task {
+            if !isInitialized {
+                updateFromDownloadManager()
+                isInitialized = true
             }
         }
     }
+    
+    // DownloadManager에서 최신 상태 가져오기
+    private func updateFromDownloadManager() {
+        if let downloadInfo = downloadManager.downloads[app.id] {
+            let newState = downloadInfo.state
+            
+            // 상태 타입이 변경된 경우에만 업데이트 (깜빡임 방지)
+            if downloadStateType != newState.stateType {
+                downloadStateType = newState.stateType
+            }
+            
+            // 진행률 업데이트 - 큰 차이가 있을 때만 (미세한 변화는 무시)
+            if abs(progress - newState.progress) > 0.02 {
+                progress = newState.progress
+            }
+            
+            // 마지막 업데이트 시간 기록
+            lastUpdateTime = Date()
+        } else {
+            downloadStateType = .notDownloaded
+            progress = 0.0
+        }
+    }
+    
+    private func handleDownloadAction() {
+        // 버튼 동작을 상태에 따라 분기
+        switch downloadStateType {
+        case .notDownloaded, .redownload:
+            // 즉시 UI 상태 변경
+            downloadStateType = .downloading
+            progress = 0.0
+            
+            // 다운로드 시작
+            DispatchQueue.global(qos: .userInitiated).async {
+                downloadManager.startDownload_modified(for: app)
+            }
+            
+        case .downloading:
+            // 즉시 UI 상태 변경
+            downloadStateType = .paused
+            // progress는 유지
+            
+            // 다운로드 일시정지
+            DispatchQueue.global(qos: .userInitiated).async {
+                downloadManager.pauseDownload_modified(for: app.id)
+            }
+            
+        case .paused:
+            // 즉시 UI 상태 변경
+            downloadStateType = .downloading
+            // progress는 유지
+            
+            // 다운로드 재개
+            DispatchQueue.global(qos: .userInitiated).async {
+                downloadManager.startDownload_modified(for: app)
+            }
+            
+        case .downloaded:
+            // 이미 설치된 앱은 별도의 동작 없음
+            break
+        }
+    }
 }
-// 행 내용을 위한 별도 View (버튼 제외)
+
 struct RowContentView: View {
     let app: AppModel
     @EnvironmentObject private var downloadManager: AppDownloadManager

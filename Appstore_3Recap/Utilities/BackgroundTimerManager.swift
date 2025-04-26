@@ -196,32 +196,4 @@ class BackgroundTimerManager {
 }
 
 
-// MARK: - 다운로드 매니저에서 BackgroundTimerManager 활용
-extension AppDownloadManager {
-    // BackgroundTimerManager와 통합하는 코드
-    func initializeBackgroundTimers() {
-        // 기존의 다운로드 정보를 BackgroundTimerManager로 이전
-        for (appId, downloadInfo) in downloads {
-            if case .downloading(let progress) = downloadInfo.state {
-                let elapsedTime = downloadInfo.downloadElapsedTime
-                let remainingTime = downloadDuration * (1.0 - Double(progress))
-                
-                BackgroundTimerManager.shared.startTimer(
-                    id: appId,
-                    duration: downloadDuration,
-                    elapsedTime: elapsedTime
-                )
-            }
-        }
-        
-        // 타이머 완료 알림 구독
-        NotificationCenter.default.publisher(for: .timersCompleted)
-            .sink { [weak self] notification in
-                if let completedTimers = notification.object as? [String] {
-                    self?.handleCompletedTimers(completedTimers)
-                }
-            }
-            .store(in: &cancellables)
-    }
-    
-}
+
