@@ -65,7 +65,7 @@ class NetworkService {
     }
     
     // MARK: - Swift Concurrency API
-    func searchApps(query: String) async throws -> [AppModel] {
+    func searchApps(query: String, offset: Int = 0) async throws -> [AppModel] {
         if useMockData {
             let response = mockDataProvider.getMockITunesSearchResponse(for: query)
             let apps = response.toApps()
@@ -75,11 +75,11 @@ class NetworkService {
             return apps
         }
         
-        guard let url = APIRequestBuilder.buildSearchURL(term: query) else {
+        guard let url = APIRequestBuilder.buildSearchURL(term: query, offset: offset) else {
             throw APIError.invalidURL
         }
         
-        print("Fetching from URL: \(url.absoluteString)")
+        print("Fetching from URL with offset \(offset): \(url.absoluteString)")
         
         let (data, response) = try await URLSession.shared.data(from: url)
         
@@ -201,11 +201,11 @@ class NetworkService {
         .eraseToAnyPublisher()
     }
     
-    func fetchAppDetail(id: String) -> AnyPublisher<AppModel, APIError> {
+    func searchApps(query: String, offset: Int = 0) -> AnyPublisher<[AppModel], APIError> {
         return Future { promise in
             Task {
                 do {
-                    let result = try await self.fetchAppDetail(id: id)
+                    let result = try await self.searchApps(query: query, offset: offset)
                     promise(.success(result))
                 } catch let error as APIError {
                     promise(.failure(error))

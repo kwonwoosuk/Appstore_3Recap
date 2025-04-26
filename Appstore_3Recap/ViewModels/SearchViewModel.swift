@@ -23,11 +23,12 @@ class SearchViewModel {
     var hasSearched = false  // 검색 실행 여부를 추적하는 플래그
     
     // MARK: - Properties
-    private var currentPage = 1
+    private var currentPage = 0  // 페이지 번호를 0부터 시작하도록 변경
     private let itemsPerPage = 20
     private var lastSearchTask: Task<Void, Never>? = nil
     private var loadedAppIds = Set<String>() // 이미 로드된 앱 ID를 추적
     private var noMoreResults = false // 더 이상 결과가 없음을 표시
+    private var totalSearchCount = 0 // 검색된 총 아이템 수를 추적
     
     private let networkService: NetworkService
     private let downloadManager: AppDownloadManager
@@ -53,13 +54,16 @@ class SearchViewModel {
         hasSearched = true
         isLoading = true
         errorMessage = nil
-        currentPage = 1
+        currentPage = 0  // 페이지 번호 초기화 (0부터 시작)
         loadedAppIds.removeAll() // 앱 ID 추적 초기화
         noMoreResults = false // 결과 없음 플래그 초기화
+        totalSearchCount = 0 // 검색 결과 카운트 초기화
         
         lastSearchTask = Task { @MainActor in
             do {
-                let apps = try await networkService.searchApps(query: searchQuery)
+                // offset 0으로 첫 페이지 요청
+                let offset = currentPage * itemsPerPage
+                let apps = try await networkService.searchApps(query: searchQuery, offset: offset)
                 
                 // Task가 취소되었는지 확인
                 try Task.checkCancellation()
@@ -75,44 +79,62 @@ class SearchViewModel {
                 }
                 
                 searchResults = uniqueApps
+                totalSearchCount += uniqueApps.count
+                
+                // 가져온 결과가 요청한 항목 수보다 적으면 더 이상 결과가 없음
                 hasMoreResults = uniqueApps.count >= itemsPerPage
                 noMoreResults = uniqueApps.isEmpty // 결과가 없으면 더 로드하지 않음
                 isLoading = false
+                
+                print("초기 검색 완료: \(uniqueApps.count)개 항목 로드됨, 더 불러올 결과: \(hasMoreResults)")
             } catch is CancellationError {
                 // 작업이 취소된 경우 아무것도 하지 않음
             } catch let error as APIError {
                 errorMessage = error.message
                 isLoading = false
+                print("검색 오류: \(error.message)")
             } catch {
                 errorMessage = "알 수 없는 오류가 발생했습니다."
                 isLoading = false
+                print("알 수 없는 검색 오류: \(error)")
             }
         }
     }
     
     func loadMoreResults() {
-        guard !isLoading, hasMoreResults, !searchQuery.isEmpty, !noMoreResults else { return }
+        guard !isLoading, hasMoreResults, !searchQuery.isEmpty, !noMoreResults else {
+            print("추가 로드 조건 실패: isLoading=\(isLoading), hasMoreResults=\(hasMoreResults), emptyQuery=\(searchQuery.isEmpty), noMoreResults=\(noMoreResults)")
+            return
+        }
         
         currentPage += 1
         isLoading = true
         
+        let offset = currentPage * itemsPerPage
+        print("페이지 \(currentPage) 로드 시작, offset: \(offset)")
+        
         lastSearchTask = Task { @MainActor in
             do {
-                let newApps = try await networkService.searchApps(query: searchQuery)
+                let newApps = try await networkService.searchApps(query: searchQuery, offset: offset)
                 
                 // Task가 취소되었는지 확인
                 try Task.checkCancellation()
+                
+                print("페이지 \(currentPage) 로드 완료: \(newApps.count)개 항목 반환됨")
                 
                 // 중복 제거
                 let uniqueApps = newApps.filter { app in
                     !loadedAppIds.contains(app.id)
                 }
                 
+                print("중복 제거 후 \(uniqueApps.count)개 항목")
+                
                 // 새로운 결과가 없으면 더 이상 로드하지 않음
                 if uniqueApps.isEmpty {
                     hasMoreResults = false
                     noMoreResults = true
                     isLoading = false
+                    print("더 이상 고유한 결과가 없습니다. 페이지네이션 중단")
                     return
                 }
                 
@@ -122,13 +144,19 @@ class SearchViewModel {
                 }
                 
                 searchResults.append(contentsOf: uniqueApps)
+                totalSearchCount += uniqueApps.count
+                
+                // 가져온 결과가 요청한 항목 수보다 적으면 더 이상 결과가 없음
                 hasMoreResults = uniqueApps.count >= itemsPerPage
                 isLoading = false
+                
+                print("현재까지 총 \(totalSearchCount)개 항목 로드됨, 더 불러올 결과: \(hasMoreResults)")
             } catch is CancellationError {
                 // 작업이 취소된 경우 아무것도 하지 않음
             } catch {
                 currentPage -= 1 // 로드 실패 시 페이지 번호 롤백
                 isLoading = false
+                print("추가 페이지 로드 오류: \(error)")
             }
         }
     }
@@ -139,10 +167,11 @@ class SearchViewModel {
         searchResults = []
         errorMessage = nil
         hasMoreResults = false
-        currentPage = 1
+        currentPage = 0
         hasSearched = false  // 검색 실행 여부 리셋
         loadedAppIds.removeAll() // 앱 ID 추적 초기화
         noMoreResults = false // 결과 없음 플래그 초기화
+        totalSearchCount = 0 // 검색 결과 카운트 초기화
         
         // 진행중인 검색 작업 취소
         lastSearchTask?.cancel()
@@ -151,9 +180,10 @@ class SearchViewModel {
     }
     
     func refreshResults() {
-        currentPage = 1
+        currentPage = 0
         loadedAppIds.removeAll() // 앱 ID 추적 초기화
         noMoreResults = false // 결과 없음 플래그 초기화
+        totalSearchCount = 0 // 검색 결과 카운트 초기화
         searchApps()
     }
     

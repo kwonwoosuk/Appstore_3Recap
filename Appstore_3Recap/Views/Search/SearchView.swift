@@ -21,15 +21,14 @@ struct AsyncSearchView: View {
                         get: { viewModel.searchQuery },
                         set: { viewModel.searchQuery = $0 }
                     ),
-                    onCommit: { viewModel.searchApps() },  // 리턴키를 통해 검색 실행
-                    onCancel: { viewModel.resetSearch() }  // 취소 버튼을 눌렀을 때 검색 초기화
+                    onCommit: { viewModel.searchApps() },
+                    onCancel: { viewModel.resetSearch() }
                 )
                 .padding(.horizontal)
                 .padding(.vertical, 8)
                 
-                // 결과 목록
                 if viewModel.searchResults.isEmpty && !viewModel.hasSearched {
-                    // 검색 전 화면 (hasSearched가 false인 경우에만 표시)
+                    // 검색 전 화면
                     VStack {
                         Image(systemName: "magnifyingglass")
                             .font(.system(size: 60))
@@ -44,7 +43,7 @@ struct AsyncSearchView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(Color.appBackground)
                 } else if viewModel.searchResults.isEmpty && !viewModel.isLoading && viewModel.errorMessage == nil && viewModel.hasSearched {
-                    // 검색 결과 없음 (hasSearched가 true일 때만 표시)
+                    // 검색 결과 없음
                     EmptyResultsView(
                         message: "'\(viewModel.searchQuery)'에 대한\n검색 결과가 없습니다.",
                         systemImageName: "magnifyingglass"
@@ -55,7 +54,7 @@ struct AsyncSearchView: View {
                         viewModel.searchApps()
                     }
                 } else {
-                    // 일반 ScrollView를 사용하여 검색 결과 표시 (List 사용하지 않음)
+                    // 검색 결과 목록
                     ScrollView {
                         LazyVStack(spacing: 0) {
                             ForEach(viewModel.searchResults) { app in
@@ -83,9 +82,11 @@ struct AsyncSearchView: View {
                                     Divider()
                                         .padding(.leading, 88) // 아이콘 너비 + 패딩
                                 }
+                                .id("app-row-\(app.id)")
                                 .onAppear {
-                                    // 마지막 항목일 경우 더 로드
-                                    if app.id == viewModel.searchResults.last?.id,
+                                    // 마지막에서 5번째 항목일 경우 더 로드 (버퍼 추가)
+                                    if viewModel.searchResults.count >= 10 &&
+                                       viewModel.searchResults.suffix(5).contains(where: { $0.id == app.id }) &&
                                        viewModel.hasMoreResults {
                                         viewModel.loadMoreResults()
                                     }
@@ -93,18 +94,28 @@ struct AsyncSearchView: View {
                             }
                             
                             // 더 로드 중일 때 하단 로딩 표시
-                            if viewModel.hasMoreResults && !viewModel.searchResults.isEmpty {
+                            if viewModel.hasMoreResults {
                                 HStack {
                                     Spacer()
                                     ProgressView()
                                         .padding()
                                     Spacer()
                                 }
+                                .id("loadingIndicator")
                                 .onAppear {
                                     if !viewModel.isLoading {
                                         viewModel.loadMoreResults()
                                     }
                                 }
+                            }
+                            
+                            // 결과가 더 이상 없을 때 표시
+                            if !viewModel.hasMoreResults && !viewModel.searchResults.isEmpty {
+                                Text("검색 결과 끝")
+                                    .font(.caption)
+                                    .foregroundColor(.secondaryText)
+                                    .padding()
+                                    .id("endOfResults")
                             }
                         }
                     }
@@ -120,11 +131,9 @@ struct AsyncSearchView: View {
             }
             .background(Color.appBackground)
             .onAppear {
-                // 화면이 나타날 때 로그 추가
                 print("SearchView appeared")
             }
             .onChange(of: scenePhase) { oldPhase, newPhase in
-                // 앱이 활성화될 때마다 다운로드 상태 갱신
                 if newPhase == .active {
                     print("Scene phase changed to active")
                 }
@@ -132,7 +141,6 @@ struct AsyncSearchView: View {
         }
     }
 }
-
 // 다운로드 버튼을 위한 별도 View
 struct DownloadButtonView: View {
     let app: AppModel
