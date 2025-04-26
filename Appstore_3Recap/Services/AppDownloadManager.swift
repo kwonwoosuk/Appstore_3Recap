@@ -90,7 +90,7 @@ class AppDownloadManager: ObservableObject {
     
     // AppDownloadManager.swift에 추가
     private let backgroundQueue = DispatchQueue(label: "com.appstore.download.background", qos: .background)
-
+    
     // startDownload 함수 수정
     func startDownload(for app: AppModel) {
         // 이미 다운로드 중이면 무시
@@ -618,7 +618,7 @@ class AppDownloadManager: ObservableObject {
             }
         }
     }
-
+    
     // 다운로드 일시 중지 함수 (UI에 즉시 반응하는 버전)
     func pauseDownload_modified(for appId: String) {
         DispatchQueue.main.async { [weak self] in
@@ -788,7 +788,7 @@ class AppDownloadManager: ObservableObject {
             }
         }
     }
-
+    
     // 앱이 처음 실행될 때 호출되는 초기화 함수 (최적화 버전)
     func initializeBackgroundTimers() {
         // 기존의 다운로드 정보를 BackgroundTimerManager로 이전
@@ -829,7 +829,7 @@ class AppDownloadManager: ObservableObject {
                 }
             }
             .store(in: &cancellables)
-            
+        
         // 앱 시작 시 전체 UI 갱신 트리거
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             self.objectWillChange.send()

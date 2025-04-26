@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-struct AsyncAppDetailView: View {
+struct AppDetailView: View {
     @State var viewModel: AppDetailViewModel
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
@@ -291,48 +291,7 @@ struct AsyncAppDetailView: View {
     }
 }
 
-// 실시간 업데이트에 최적화된 앱 헤더 섹션
-struct EnhancedAppHeaderSection: View {
-    let app: AppModel
-    let downloadState: AppDownloadState
-    let progress: Float
-    let onDownloadAction: () -> Void
-    
-    // 현재 다운로드 상태 계산 프로퍼티
-    private var currentState: AppDownloadState {
-        if case .downloading = downloadState {
-            return .downloading(progress)
-        } else {
-            return downloadState
-        }
-    }
-    
-    var body: some View {
-        HStack(spacing: 16) {
-            // 앱 아이콘
-            AsyncImageView(url: app.iconURL, placeholderImageName: "app.fill", cornerRadius: 16)
-                .frame(width: 120, height: 120)
-            
-            VStack(alignment: .leading, spacing: 8) {
-                Text(app.name)
-                    .font(.title2)
-                    .fontWeight(.bold)
-                    .lineLimit(2)
-                
-                Text(app.developerName)
-                    .font(.subheadline)
-                    .foregroundColor(.secondaryText)
-                
-                Spacer()
-                
-                // 최적화된 다운로드 버튼
-                EnhancedDownloadButton(app: app, state: currentState, action: onDownloadAction)
-                    .frame(height: 32)
-            }
-        }
-        .frame(height: 120)
-    }
-}
+
 
 // 실시간 업데이트에 최적화된 다운로드 버튼
 struct EnhancedDownloadButton: View {

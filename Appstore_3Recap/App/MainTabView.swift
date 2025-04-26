@@ -7,7 +7,6 @@
 
 import SwiftUI
 
-
 struct MainTabView: View {
     @State private var selectedTab = 4 // 검색 탭
     @StateObject private var downloadManager = AppDownloadManager.shared

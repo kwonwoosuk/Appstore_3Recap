@@ -62,7 +62,7 @@ struct AsyncSearchView: View {
                                     // 행 내용을 담을 ZStack
                                     ZStack(alignment: .topLeading) {
                                         // 앱 정보 행 (탭 가능한 영역)
-                                        NavigationLink(destination: AsyncAppDetailView(viewModel: AppDetailViewModel(app: app))) {
+                                        NavigationLink(destination: AppDetailView(viewModel: AppDetailViewModel(app: app))) {
                                             // 행 전체 컨텐츠 (버튼 제외)
                                             RowContentView(app: app)
                                         }

@@ -30,7 +30,7 @@ struct AppDownloadButton: View {
                     .frame(minWidth: 70)
                     .background(Color.secondaryBackground)
                     .cornerRadius(14)
-            
+                
             case .downloading(let progress):
                 // 다운로드 중 - 일시정지 아이콘 포함
                 ZStack {
@@ -56,7 +56,7 @@ struct AppDownloadButton: View {
                         animatedProgress = newValue
                     }
                 }
-            
+                
             case .paused(let progress):
                 // 재개 버튼 - 아이콘과 텍스트
                 HStack(spacing: 4) {
@@ -73,7 +73,7 @@ struct AppDownloadButton: View {
                 .onAppear {
                     animatedProgress = progress // 일시정지 상태일 때도 animatedProgress 업데이트
                 }
-            
+                
             case .downloaded:
                 // 열기 버튼
                 Text(state.buttonText)
