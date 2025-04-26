@@ -16,7 +16,18 @@ class UserAppsViewModel {
     
     // MARK: - 출력
     var installedApps: [AppModel] = []
-    var filteredApps: [AppModel] = []
+    
+    // 필터링된 앱 목록을 계산 프로퍼티로 변경
+    var filteredApps: [AppModel] {
+        let query = searchQuery.lowercased()
+        if query.isEmpty {
+            return installedApps
+        } else {
+            return installedApps.filter {
+                $0.name.lowercased().contains(query)
+            }
+        }
+    }
     
     // MARK: - 프로퍼티
     private let downloadManager: AppDownloadManager
@@ -31,36 +42,27 @@ class UserAppsViewModel {
             .sink { [weak self] apps in
                 guard let self = self else { return }
                 self.installedApps = apps
-                self.filterApps()
+                // filterApps() 호출 제거 - 계산 프로퍼티로 대체
             }
         
         // 초기 데이터 로드
         installedApps = downloadManager.installedApps
-        filterApps()
     }
     
-    // MARK: - 앱 필터링
-    func filterApps() {
-        let query = searchQuery.lowercased()
-        
-        if query.isEmpty {
-            filteredApps = installedApps
-        } else {
-            filteredApps = installedApps.filter {
-                $0.name.lowercased().contains(query)
-            }
-        }
+    deinit {
+        // 구독 해제
+        cancellable?.cancel()
     }
     
     // MARK: - 앱 삭제
     func deleteApp(withId appId: String) {
         downloadManager.deleteApp(withId: appId)
-        // filterApps()는 필요하지 않음 - Publisher가 자동으로 업데이트됨
+        // 상태 변경은 AppDownloadManager의 Publisher를 통해 자동으로 반영됨
     }
     
     // MARK: - 검색 쿼리 업데이트
     func updateSearchQuery(_ query: String) {
         searchQuery = query
-        filterApps()
+        
     }
 }

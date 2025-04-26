@@ -31,7 +31,7 @@ struct UserAppRow: View {
     
     var body: some View {
         HStack(spacing: 12) {
-            // 앱 아이콘
+            // 앱 아이콘 (왼쪽에 추가 패딩)
             AsyncImageView(url: app.iconURL, placeholderImageName: "app.fill", cornerRadius: 12)
                 .frame(width: 60, height: 60)
             
@@ -57,6 +57,7 @@ struct UserAppRow: View {
                 // 앱 열기 액션 - 실제로는 앱을 실행하는 코드가 여기에 들어갈 수 있음
                 print("앱 열기: \(app.name)")
             }
+            .padding(.trailing, 16) // 오른쪽 패딩 추가
         }
         .padding(.vertical, 8)
     }
