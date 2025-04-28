@@ -19,18 +19,46 @@ struct Appstore_3RecapApp: App {
     }
     
     @StateObject private var downloadManager = AppDownloadManager.shared
+    @State private var isShowingSplash = true
     
     var body: some Scene {
         WindowGroup {
-            MainTabView()
-                .environmentObject(downloadManager)
-                .onAppear {
+            ZStack {
+                if isShowingSplash {
+                    SplashScreenView()
+                        .transition(.opacity)
+                        .zIndex(1)
+                } else {
+                    MainTabView()
+                        .environmentObject(downloadManager)
+                }
+            }
+            .onAppear {
+                // 1초 후에 스플래시 화면 숨기기
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                    withAnimation {
+                        isShowingSplash = false
+                    }
+                    
                     // 앱이 시작될 때 UI 갱신을 위한 상태 브로드캐스트
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                         downloadManager.broadcastInitialStates()
                     }
                 }
-                .preferredColorScheme(.light)
+            }
+            .preferredColorScheme(.light)
+        }
+    }
+}
+
+struct SplashScreenView: View {
+    var body: some View {
+        ZStack {
+            Color.white.edgesIgnoringSafeArea(.all)
+            
+            Text("권우석")
+                .font(.system(size: 40, weight: .bold))
+                .foregroundColor(.black)
         }
     }
 }
