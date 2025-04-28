@@ -30,6 +30,7 @@ struct Appstore_3RecapApp: App {
                         downloadManager.broadcastInitialStates()
                     }
                 }
+                .preferredColorScheme(.light)
         }
     }
 }
